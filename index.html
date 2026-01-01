@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>Shake Rhythm — Anime Squat Edition</title>
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg0:#05070a; --bg1:#0b0f1a; --fg:#e7edf7;
+      --blue:#2f81f7; --cyan:#2dd4ff;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; min-height:100vh;
+      font-family: system-ui, sans-serif;
+      background: var(--bg0); color: var(--fg); overflow:hidden;
+    }
+    .app{ position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; }
+    .topbar{
+      height:50px; display:flex; align-items:center; padding:0 14px; gap:10px;
+      background: rgba(255,255,255,.05); backdrop-filter: blur(8px); z-index: 100;
+    }
+    .spacer{ flex:1; }
+    .btn{
+      appearance:none; border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06); color: var(--fg);
+      padding:6px 10px; border-radius:8px; font-weight:bold; cursor:pointer;
+    }
+    .btn.primary{ background: var(--blue); color:#000; border:none; width:100%; padding:14px; font-size:16px; }
+    
+    canvas{ width:100vw; height:100vh; display:block; }
+    
+    .overlay{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; z-index:200; }
+    .panel{
+      width:min(90vw, 400px); border-radius:24px;
+      background: rgba(15,20,30,0.95); border:1px solid rgba(255,255,255,0.1);
+      padding:24px; pointer-events:auto; backdrop-filter: blur(20px); text-align:center;
+    }
+    .hidden{ display:none !important; }
+    input[type="range"]{ width:100%; accent-color: var(--cyan); }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div style="font-weight:900">SHAKE ANIME</div>
+    <div class="spacer"></div>
+    <button class="btn" id="btnPerm">モーション許可</button>
+    <button class="btn" id="btnRestart">リセット</button>
+  </div>
+
+  <div class="overlay" id="ovStart">
+    <div class="panel">
+      <h2>Anime Squat Rhythm</h2>
+      <p style="font-size:13px; color:rgba(255,255,255,0.6)">ノーツが重なる瞬間にスマホを振れ！</p>
+      
+      <div style="margin-bottom:20px">
+        <div style="display:flex; justify-content:space-between; font-size:12px"><span>判定感度</span><span id="sensVal">1.80</span></div>
+        <input id="sens" type="range" min="1.0" max="2.5" step="0.1" value="1.8"/>
+      </div>
+
+      <button class="btn primary" id="btnStart" disabled>画像読み込み中...</button>
+    </div>
+  </div>
+
+  <canvas id="game"></canvas>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  let W, H;
+
+  const resize = () => {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  };
+  window.addEventListener("resize", resize);
+  resize();
+
+  const state = {
+    running: false,
+    startTime: 0,
+    notes: [],
+    score: 0, combo: 0,
+    flash: 0,
+    hitTime: 0, // ヒットした瞬間のタイムスタンプ
+    params: { bpm: 115, speed: 500, thresh: 5.8 }
+  };
+
+  // --- 画像設定 ---
+  const imageFiles = [
+    "１スクワットアニメ.jpg",
+    "２スクワットアニメ.jpg",
+    "３スクワットアニメ.jpg",
+    "４スクワットアニメ.jpg",
+    "５スクワットアニメ.jpg"
+  ];
+  const images = [];
+  let loadedCount = 0;
+
+  imageFiles.forEach((src, i) => {
+    const img = new Image();
+    img.onload = () => {
+      loadedCount++;
+      if (loadedCount === 5) {
+        const btn = document.getElementById("btnStart");
+        btn.disabled = false;
+        btn.textContent = "GAME START";
+      }
+    };
+    img.src = src;
+    images[i] = img;
+  });
+
+  // --- 音ゲーロジック ---
+  function spawnNotes() {
+    const now = (performance.now() - state.startTime) / 1000;
+    const step = 60 / state.params.bpm;
+    for (let i = 0; i < 20; i++) {
+      state.notes.push({
+        t: now + 3 + (i * step),
+        side: Math.random() < 0.5 ? -1 : 1,
+        judged: false
+      });
+    }
+  }
+
+  function judge() {
+    if (!state.running) return;
+    const now = (performance.now() - state.startTime) / 1000;
+    let hit = false;
+    state.notes.forEach(n => {
+      if (!n.judged) {
+        const dt = Math.abs(now - n.t);
+        if (dt < 0.15) {
+          n.judged = true;
+          state.score += 100;
+          state.combo++;
+          hit = true;
+        }
+      }
+    });
+    if (hit) {
+      state.flash = 1.0;
+      state.hitTime = performance.now();
+    }
+  }
+
+  // --- メインループ ---
+  function loop() {
+    if (!state.running) return;
+    const nowMs = performance.now();
+    const nowSec = (nowMs - state.startTime) / 1000;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // 1. パラパラ漫画アニメーションの描画
+    const cycle = [0, 1, 2, 3, 4, 3, 2, 1];
+    const fps = 8;
+    const animStep = Math.floor(nowMs / (1000 / fps)) % cycle.length;
+    
+    // ヒットしてから0.3秒間は「1番（決めポーズ）」で固定する
+    let imgIdx = cycle[animStep];
+    let isHitEffect = false;
+    if (nowMs - state.hitTime < 300) {
+      imgIdx = 0; // １スクワットアニメ.jpg
+      isHitEffect = true;
+    }
+
+    const img = images[imgIdx];
+    if (img) {
+      const maxW = W * 0.85;
+      const maxH = H * 0.7;
+      const scale = Math.min(maxW / img.width, maxH / img.height);
+      const iw = img.width * scale, ih = img.height * scale;
+      
+      ctx.save();
+      ctx.translate(W/2, H/2);
+      if (isHitEffect) { // ヒット時に震わせる
+        ctx.translate((Math.random()-0.5)*15, (Math.random()-0.5)*15);
+      }
+      ctx.drawImage(img, -iw/2, -ih/2, iw, ih);
+      ctx.restore();
+    }
+
+    // 2. 音ゲー要素（判定サークルとノーツ）の描画
+    const targetX = W / 2;
+    const targetY = H * 0.85;
+
+    // 判定円
+    ctx.beginPath();
+    ctx.strokeStyle = state.flash > 0 ? `rgba(45,212,255,${state.flash})` : "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 4;
+    ctx.arc(targetX, targetY, 30, 0, Math.PI * 2);
+    ctx.stroke();
+    state.flash *= 0.9;
+
+    // ノーツ
+    state.notes.forEach(n => {
+      if (n.judged) return;
+      const dt = n.t - nowSec;
+      if (dt < -0.2) { n.judged = true; state.combo = 0; return; }
+      if (dt > 2.0) return;
+
+      const x = targetX + (n.side * dt * state.params.speed);
+      ctx.fillStyle = n.side === -1 ? "#2f81f7" : "#2dd4ff";
+      ctx.beginPath();
+      ctx.arc(x, targetY, 20, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    if (state.notes.filter(n => !n.judged).length < 5) spawnNotes();
+
+    // 3. UI
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 32px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(state.score.toLocaleString(), W/2, 100);
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`${state.combo} COMBO`, W/2, 140);
+
+    requestAnimationFrame(loop);
+  }
+
+  // --- イベント ---
+  document.getElementById("btnStart").onclick = () => {
+    state.startTime = performance.now();
+    state.running = true;
+    state.score = 0; state.combo = 0;
+    document.getElementById("ovStart").classList.add("hidden");
+    spawnNotes();
+    loop();
+  };
+
+  document.getElementById("btnPerm").onclick = async () => {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res === 'granted') alert("モーションセンサー有効化");
+    }
+  };
+
+  window.addEventListener("devicemotion", (e) => {
+    const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
+    const diff = Math.abs(acc.x - lastA.x) + Math.abs(acc.y - lastA.y) + Math.abs(acc.z - lastA.z);
+    lastA = {x:acc.x, y:acc.y, z:acc.z};
+    const sens = parseFloat(document.getElementById("sens").value);
+    if (diff * sens > state.params.thresh) judge();
+  });
+  let lastA = {x:0, y:0, z:0};
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") judge();
+  });
+
+  document.getElementById("btnRestart").onclick = () => location.reload();
+  document.getElementById("sens").oninput = (e) => {
+    document.getElementById("sensVal").textContent = parseFloat(e.target.value).toFixed(2);
+  };
+})();
+</script>
+</body>
+</html>
