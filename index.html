@@ -3,263 +3,233 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <title>Shake Rhythm — Anime Squat Edition</title>
+  <title>Shake Rhythm — Impact Edition</title>
   <style>
     :root{
-      color-scheme: dark;
-      --bg0:#05070a; --bg1:#0b0f1a; --fg:#e7edf7;
-      --blue:#2f81f7; --cyan:#2dd4ff;
+      --bg:#020406; --fg:#e7edf7; --blue:#2f81f7;
+      --perfect: #ffcf00; --great: #ff4ef0; --good: #00ffad; --miss: #ff3333;
     }
-    *{ box-sizing:border-box; }
-    body{
-      margin:0; min-height:100vh;
-      font-family: system-ui, sans-serif;
-      background: var(--bg0); color: var(--fg); overflow:hidden;
-    }
-    .app{ position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; }
-    .topbar{
-      height:50px; display:flex; align-items:center; padding:0 14px; gap:10px;
-      background: rgba(255,255,255,.05); backdrop-filter: blur(8px); z-index: 100;
-    }
-    .spacer{ flex:1; }
-    .btn{
-      appearance:none; border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06); color: var(--fg);
-      padding:6px 10px; border-radius:8px; font-weight:bold; cursor:pointer;
-    }
-    .btn.primary{ background: var(--blue); color:#000; border:none; width:100%; padding:14px; font-size:16px; }
+    body{ margin:0; background:var(--bg); color:var(--fg); overflow:hidden; font-family:sans-serif; }
+    /* キャンバス自体の揺れを制御 */
+    canvas{ width:100vw; height:100vh; display:block; transition: transform 0.05s; }
     
-    canvas{ width:100vw; height:100vh; display:block; }
+    .ui{ position:absolute; inset:0; pointer-events:none; z-index:100; display:flex; flex-direction:column; align-items:center; }
+    .score-area{ margin-top:60px; text-align:center; }
+    .combo{ font-size:24px; font-weight:bold; letter-spacing: 2px; }
+    .judge-text{ font-size:54px; font-weight:900; font-style:italic; margin-top:10px; text-shadow: 0 0 20px rgba(255,255,255,0.3); }
     
-    .overlay{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; z-index:200; }
-    .panel{
-      width:min(90vw, 400px); border-radius:24px;
-      background: rgba(15,20,30,0.95); border:1px solid rgba(255,255,255,0.1);
-      padding:24px; pointer-events:auto; backdrop-filter: blur(20px); text-align:center;
-    }
+    .overlay{ position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,0.95); z-index:200; pointer-events:auto; }
+    .panel{ width:85%; max-width:400px; padding:40px; background:#111; border-radius:32px; text-align:center; border:1px solid #333; box-shadow: 0 0 50px rgba(0,0,0,1); }
+    .btn{ padding:20px; background:var(--blue); color:#fff; border:none; border-radius:16px; font-weight:bold; width:100%; font-size:22px; cursor:pointer; box-shadow: 0 4px 15px rgba(47,129,247,0.4); }
     .hidden{ display:none !important; }
-    input[type="range"]{ width:100%; accent-color: var(--cyan); }
   </style>
 </head>
 <body>
 
-<div class="app">
-  <div class="topbar">
-    <div style="font-weight:900">SHAKE ANIME</div>
-    <div class="spacer"></div>
-    <button class="btn" id="btnPerm">モーション許可</button>
-    <button class="btn" id="btnRestart">リセット</button>
+<div class="ui">
+  <div class="score-area">
+    <div id="combo" class="combo"></div>
+    <div id="judgeLabel" class="judge-text"></div>
   </div>
-
-  <div class="overlay" id="ovStart">
-    <div class="panel">
-      <h2>Anime Squat Rhythm</h2>
-      <p style="font-size:13px; color:rgba(255,255,255,0.6)">ノーツが重なる瞬間にスマホを振れ！</p>
-      
-      <div style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; font-size:12px"><span>判定感度</span><span id="sensVal">1.80</span></div>
-        <input id="sens" type="range" min="1.0" max="2.5" step="0.1" value="1.8"/>
-      </div>
-
-      <button class="btn primary" id="btnStart" disabled>画像読み込み中...</button>
-    </div>
-  </div>
-
-  <canvas id="game"></canvas>
 </div>
+
+<div class="overlay" id="ovStart">
+  <div class="panel">
+    <h2 style="margin-top:0">IMPACT SQUAT</h2>
+    <p style="font-size:14px; color:#888; margin-bottom:30px;">衝撃をその手で感じろ！<br>リズムに合わせて全力でシェイク。</p>
+    <button class="btn" id="btnStart">START GAME</button>
+  </div>
+</div>
+
+<canvas id="game"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
-  let W, H;
+  const comboDisp = document.getElementById("combo");
+  const judgeLabel = document.getElementById("judgeLabel");
+  const btnStart = document.getElementById("btnStart");
+  const ovStart = document.getElementById("ovStart");
 
-  const resize = () => {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-  };
+  let W, H, audioCtx;
+  const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
   window.addEventListener("resize", resize);
   resize();
 
-  const state = {
-    running: false,
-    startTime: 0,
-    notes: [],
-    score: 0, combo: 0,
-    flash: 0,
-    hitTime: 0, // ヒットした瞬間のタイムスタンプ
-    params: { bpm: 115, speed: 500, thresh: 5.8 }
+  const squatCycleSec = 1.0; 
+  const cycle = [0, 1, 2, 3, 4, 3, 2, 1];
+  const state = { 
+    running: false, startTime: 0, notes: [], score: 0, combo: 0, 
+    flash: 0, hitTime: 0, shake: 0 
   };
 
-  // --- 画像設定 ---
-  const imageFiles = [
-    "１スクワットアニメ.jpg",
-    "２スクワットアニメ.jpg",
-    "３スクワットアニメ.jpg",
-    "４スクワットアニメ.jpg",
-    "５スクワットアニメ.jpg"
-  ];
+  // --- 衝撃的な効果音 (低音+ノイズ) ---
+  function playImpactSE(type) {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime;
+    
+    // 低音成分 (Kick)
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'triangle';
+    const baseFreq = type === 'PERFECT' ? 150 : 100;
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.3);
+    g.gain.setValueAtTime(0.6, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start(); osc.stop(t + 0.3);
+
+    // 衝撃ノイズ成分 (Snare/Impact)
+    const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseBuffer.length; i++) output[i] = Math.random() * 2 - 1;
+    const whiteNoise = audioCtx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    const noiseFilter = audioCtx.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.setValueAtTime(type === 'PERFECT' ? 2000 : 800, t);
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(type === 'PERFECT' ? 0.3 : 0.1, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+    whiteNoise.connect(noiseFilter).connect(noiseGain).connect(audioCtx.destination);
+    whiteNoise.start();
+  }
+
+  // --- 画像読み込み ---
   const images = [];
-  let loadedCount = 0;
+  const files = ["１スクワットアニメ.jpg","２スクワットアニメ.jpg","３スクワットアニメ.jpg","４スクワットアニメ.jpg","５スクワットアニメ.jpg"];
+  files.forEach((src, i) => { const img = new Image(); img.src = src; images[i] = img; });
 
-  imageFiles.forEach((src, i) => {
-    const img = new Image();
-    img.onload = () => {
-      loadedCount++;
-      if (loadedCount === 5) {
-        const btn = document.getElementById("btnStart");
-        btn.disabled = false;
-        btn.textContent = "GAME START";
+  function buildChart() {
+    let t = 3.0;
+    while(t < 160) {
+      const r = Math.random();
+      if(r < 0.6) { state.notes.push({ t, judged: false }); t += 1.0; }
+      else if(r < 0.8) { 
+        [0, 0.25, 0.5].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 1.0; 
+      } else {
+        [0, 0.2, 0.4, 0.6, 1.0].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 2.0;
       }
-    };
-    img.src = src;
-    images[i] = img;
-  });
-
-  // --- 音ゲーロジック ---
-  function spawnNotes() {
-    const now = (performance.now() - state.startTime) / 1000;
-    const step = 60 / state.params.bpm;
-    for (let i = 0; i < 20; i++) {
-      state.notes.push({
-        t: now + 3 + (i * step),
-        side: Math.random() < 0.5 ? -1 : 1,
-        judged: false
-      });
     }
   }
 
   function judge() {
     if (!state.running) return;
     const now = (performance.now() - state.startTime) / 1000;
-    let hit = false;
-    state.notes.forEach(n => {
-      if (!n.judged) {
-        const dt = Math.abs(now - n.t);
-        if (dt < 0.15) {
-          n.judged = true;
-          state.score += 100;
-          state.combo++;
-          hit = true;
-        }
+    let target = state.notes.find(n => !n.judged && Math.abs(now - n.t) < 0.35);
+
+    if (target) {
+      const dt = Math.abs(now - target.t);
+      target.judged = true;
+      if (dt < 0.09) {
+        applyJudge("PERFECT", "var(--perfect)", 15);
+        playImpactSE('PERFECT');
+        if(navigator.vibrate) navigator.vibrate([50, 20, 50]);
+      } else if (dt < 0.2) {
+        applyJudge("GREAT", "var(--great)", 8);
+        playImpactSE('GREAT');
+      } else {
+        applyJudge("GOOD", "var(--good)", 0);
+        playImpactSE('GOOD');
       }
-    });
-    if (hit) {
-      state.flash = 1.0;
-      state.hitTime = performance.now();
     }
   }
 
-  // --- メインループ ---
+  function applyJudge(text, color, shakePower) {
+    state.combo++;
+    state.flash = 1.0;
+    state.hitTime = performance.now();
+    state.shake = shakePower; // シェイク強度をセット
+    judgeLabel.textContent = text;
+    judgeLabel.style.color = color;
+    comboDisp.textContent = state.combo + " COMBO";
+  }
+
   function loop() {
     if (!state.running) return;
     const nowMs = performance.now();
     const nowSec = (nowMs - state.startTime) / 1000;
 
-    ctx.clearRect(0, 0, W, H);
-
-    // 1. パラパラ漫画アニメーションの描画
-    const cycle = [0, 1, 2, 3, 4, 3, 2, 1];
-    const fps = 8;
-    const animStep = Math.floor(nowMs / (1000 / fps)) % cycle.length;
-    
-    // ヒットしてから0.3秒間は「1番（決めポーズ）」で固定する
-    let imgIdx = cycle[animStep];
-    let isHitEffect = false;
-    if (nowMs - state.hitTime < 300) {
-      imgIdx = 0; // １スクワットアニメ.jpg
-      isHitEffect = true;
+    // スクリーンシェイクの減衰と適用
+    if (state.shake > 0.1) {
+      const sx = (Math.random() - 0.5) * state.shake;
+      const sy = (Math.random() - 0.5) * state.shake;
+      canvas.style.transform = `translate(${sx}px, ${sy}px)`;
+      state.shake *= 0.85;
+    } else {
+      canvas.style.transform = `translate(0,0)`;
     }
 
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+
+    // キャラ
+    const progress = (nowSec % squatCycleSec) / squatCycleSec;
+    const step = Math.floor(progress * cycle.length);
+    let imgIdx = cycle[step];
+    if (nowMs - state.hitTime < 80) imgIdx = 0;
     const img = images[imgIdx];
-    if (img) {
-      const maxW = W * 0.85;
-      const maxH = H * 0.7;
-      const scale = Math.min(maxW / img.width, maxH / img.height);
+    if (img && img.complete) {
+      const scale = Math.min(W * 0.85 / img.width, H * 0.6 / img.height);
       const iw = img.width * scale, ih = img.height * scale;
-      
-      ctx.save();
-      ctx.translate(W/2, H/2);
-      if (isHitEffect) { // ヒット時に震わせる
-        ctx.translate((Math.random()-0.5)*15, (Math.random()-0.5)*15);
-      }
-      ctx.drawImage(img, -iw/2, -ih/2, iw, ih);
-      ctx.restore();
+      ctx.drawImage(img, W/2 - iw/2, H/2 - ih/2 - 50, iw, ih);
     }
 
-    // 2. 音ゲー要素（判定サークルとノーツ）の描画
-    const targetX = W / 2;
-    const targetY = H * 0.85;
+    // 判定サークル (衝撃波エフェクト)
+    const targetY = H * 0.82, targetX = W / 2, speed = 480;
+    if (state.flash > 0) {
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(255,255,255,${state.flash})`;
+      ctx.lineWidth = 2;
+      ctx.arc(targetX, targetY, 40 + (1 - state.flash) * 60, 0, Math.PI*2);
+      ctx.stroke();
+    }
 
-    // 判定円
     ctx.beginPath();
-    ctx.strokeStyle = state.flash > 0 ? `rgba(45,212,255,${state.flash})` : "rgba(255,255,255,0.3)";
-    ctx.lineWidth = 4;
-    ctx.arc(targetX, targetY, 30, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 4; ctx.arc(targetX, targetY, 40, 0, Math.PI*2); ctx.stroke();
     state.flash *= 0.9;
 
     // ノーツ
     state.notes.forEach(n => {
       if (n.judged) return;
       const dt = n.t - nowSec;
-      if (dt < -0.2) { n.judged = true; state.combo = 0; return; }
-      if (dt > 2.0) return;
-
-      const x = targetX + (n.side * dt * state.params.speed);
-      ctx.fillStyle = n.side === -1 ? "#2f81f7" : "#2dd4ff";
-      ctx.beginPath();
-      ctx.arc(x, targetY, 20, 0, Math.PI * 2);
-      ctx.fill();
+      if (dt < -0.2) { 
+        n.judged = true; state.combo = 0; 
+        judgeLabel.textContent = "MISS"; judgeLabel.style.color = "var(--miss)";
+        comboDisp.textContent = ""; return;
+      }
+      if (dt > 1.8) return;
+      const xOff = dt * speed;
+      ctx.fillStyle = "#2f81f7"; ctx.beginPath(); ctx.arc(targetX - xOff, targetY, 22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = "#2dd4ff"; ctx.beginPath(); ctx.arc(targetX + xOff, targetY, 22, 0, Math.PI*2); ctx.fill();
     });
-
-    if (state.notes.filter(n => !n.judged).length < 5) spawnNotes();
-
-    // 3. UI
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 32px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(state.score.toLocaleString(), W/2, 100);
-    ctx.font = "20px sans-serif";
-    ctx.fillText(`${state.combo} COMBO`, W/2, 140);
 
     requestAnimationFrame(loop);
   }
 
-  // --- イベント ---
-  document.getElementById("btnStart").onclick = () => {
+  btnStart.addEventListener("click", async () => {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      await DeviceMotionEvent.requestPermission();
+    }
+    ovStart.classList.add("hidden");
     state.startTime = performance.now();
     state.running = true;
-    state.score = 0; state.combo = 0;
-    document.getElementById("ovStart").classList.add("hidden");
-    spawnNotes();
+    buildChart();
     loop();
-  };
+  });
 
-  document.getElementById("btnPerm").onclick = async () => {
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      const res = await DeviceMotionEvent.requestPermission();
-      if (res === 'granted') alert("モーションセンサー有効化");
-    }
-  };
-
+  let lastA = {x:0, y:0, z:0};
   window.addEventListener("devicemotion", (e) => {
     const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
     const diff = Math.abs(acc.x - lastA.x) + Math.abs(acc.y - lastA.y) + Math.abs(acc.z - lastA.z);
     lastA = {x:acc.x, y:acc.y, z:acc.z};
-    const sens = parseFloat(document.getElementById("sens").value);
-    if (diff * sens > state.params.thresh) judge();
-  });
-  let lastA = {x:0, y:0, z:0};
-
-  window.addEventListener("keydown", (e) => {
-    if (e.code === "Space") judge();
+    if (diff > 22) judge();
   });
 
-  document.getElementById("btnRestart").onclick = () => location.reload();
-  document.getElementById("sens").oninput = (e) => {
-    document.getElementById("sensVal").textContent = parseFloat(e.target.value).toFixed(2);
-  };
+  window.addEventListener("touchstart", (e) => { if(state.running) { e.preventDefault(); judge(); } }, {passive:false});
+  window.addEventListener("mousedown", () => { if(state.running) judge(); });
 })();
 </script>
 </body>
