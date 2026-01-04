@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>Squat Rhythm — Multi-Device Edition</title>
+  <style>
+    :root{
+      --bg:#020406; --fg:#e7edf7; --blue:#2f81f7;
+      --perfect: #ffcf00; --great: #ff4ef0; --good: #00ffad; --miss: #ff3333;
+    }
+    body{ margin:0; background:var(--bg); color:var(--fg); overflow:hidden; font-family:sans-serif; }
+    canvas{ width:100vw; height:100vh; display:block; transition: transform 0.03s; }
+    
+    .seekbar-container { position: fixed; top: 20px; left: 10%; width: 80%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; z-index: 150; border: 1px solid rgba(255,255,255,0.2); }
+    #seekbar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--blue), #00ffad); box-shadow: 0 0 15px var(--blue); }
+    .time-label { position: fixed; top: 38px; right: 10%; font-size: 18px; font-weight: bold; font-family: monospace; color: var(--blue); z-index: 150; text-shadow: 0 0 10px rgba(47,129,247,0.5); }
+
+    .ui{ position:absolute; inset:0; pointer-events:none; z-index:100; display:flex; flex-direction:column; align-items:center; }
+    .score-area{ margin-top:100px; text-align:center; }
+    .combo{ font-size:24px; font-weight:bold; letter-spacing: 2px; }
+    .judge-text{ font-size:60px; font-weight:900; font-style:italic; margin-top:10px; }
+    
+    .overlay{ position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,0.95); z-index:200; pointer-events:auto; }
+    .panel{ width:85%; max-width:400px; padding:30px; background:#111; border-radius:32px; text-align:center; border:1px solid #333; }
+    .btn{ padding:18px; background:var(--blue); color:#fff; border:none; border-radius:16px; font-weight:bold; width:100%; font-size:22px; cursor:pointer; margin-top: 20px;}
+    
+    .config-item { margin: 20px 0; text-align: left; }
+    .config-item label { display: block; font-size: 14px; color: #aaa; margin-bottom: 8px; }
+    input[type=range] { width: 100%; cursor: pointer; }
+    .hidden{ display:none !important; }
+  </style>
+</head>
+<body>
+
+<div class="seekbar-container"><div id="seekbar-fill"></div></div>
+<div class="time-label" id="timer">02:30</div>
+
+<div class="ui">
+  <div class="score-area">
+    <div id="combo" class="combo"></div>
+    <div id="judgeLabel" class="judge-text"></div>
+  </div>
+</div>
+
+<div class="overlay" id="ovStart">
+  <div class="panel">
+    <h2 style="margin-bottom:10px;">IMPACT SQUAT</h2>
+    <p style="font-size:13px; color:#888;">スマホなら振って判定、PCならSpaceキーで判定！</p>
+    <div class="config-item">
+      <label>スマホ感度 (PCは無関係): <span id="sens-val" style="color:var(--blue); font-weight:bold;">20</span></label>
+      <input type="range" id="sens-slider" min="5" max="50" value="20">
+      <div id="sens-test" style="height:4px; background:#333; margin-top:10px; border-radius:2px; overflow:hidden;">
+        <div id="sens-bar" style="width:0%; height:100%; background:var(--good); transition: width 0.1s;"></div>
+      </div>
+    </div>
+    <button class="btn" id="btnStart">START GAME</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="ovResult">
+  <div class="panel">
+    <h2>FINISH!</h2>
+    <div id="res-stats" style="font-size: 18px; margin: 20px 0;"></div>
+    <button class="btn" onclick="location.reload()">RETRY</button>
+  </div>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const seekbarFill = document.getElementById("seekbar-fill");
+  const timerLabel = document.getElementById("timer");
+  const sensSlider = document.getElementById("sens-slider");
+  const sensValLabel = document.getElementById("sens-val");
+  const sensBar = document.getElementById("sens-bar");
+  const btnStart = document.getElementById("btnStart");
+  const ovStart = document.getElementById("ovStart");
+  const ovResult = document.getElementById("ovResult");
+
+  let W, H, audioCtx;
+  const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+  window.addEventListener("resize", resize);
+  resize();
+
+  const DURATION = 150; 
+  const squatCycleSec = 1.0; 
+  const cycle = [0, 1, 2, 3, 4, 3, 2, 1];
+  
+  let sensitivity = 20;
+  const state = { 
+    running: false, startTime: 0, notes: [], 
+    combo: 0, maxCombo: 0, flash: 0, hitTime: 0, shake: 0,
+    stats: { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 }
+  };
+
+  sensSlider.oninput = () => {
+    sensitivity = parseInt(sensSlider.value);
+    sensValLabel.textContent = sensitivity;
+  };
+
+  function playImpactSE(type) {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(type==='PERFECT'?160:100, t);
+    osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.4);
+    g.gain.setValueAtTime(0.6, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start(); osc.stop(t + 0.4);
+  }
+
+  const images = [];
+  const files = ["１スクワットアニメ.jpg","２スクワットアニメ.jpg","３スクワットアニメ.jpg","４スクワットアニメ.jpg","５スクワットアニメ.jpg"];
+  files.forEach((src, i) => { const img = new Image(); img.src = src; images[i] = img; });
+
+  function buildChart() {
+    let t = 3.0;
+    while(t < DURATION) {
+      const isLate = t > 75;
+      const isLastSpurt = t > DURATION - 10;
+      if(isLastSpurt) {
+        [0, 0.33, 0.66].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 1.0;
+      } else {
+        const r = Math.random();
+        const complexProb = isLate ? 0.6 : 0.3;
+        if(r > complexProb) {
+          state.notes.push({ t, judged: false }); t += 1.0;
+        } else if(Math.random() > 0.5) {
+          [0, 0.25, 0.5].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 1.0;
+        } else {
+          [0, 0.25, 0.5, 0.75, 1.25].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 2.0;
+        }
+      }
+    }
+  }
+
+  function applyJudge(text, color, shake, key) {
+    state.combo++;
+    state.maxCombo = Math.max(state.maxCombo, state.combo);
+    state.stats[key]++;
+    state.flash = 1.0; state.hitTime = performance.now(); state.shake = shake;
+    document.getElementById("judgeLabel").textContent = text;
+    document.getElementById("judgeLabel").style.color = color;
+    document.getElementById("combo").textContent = state.combo + " COMBO";
+    playImpactSE(key);
+    if(key==='PERFECT' && navigator.vibrate) navigator.vibrate(60);
+  }
+
+  function loop() {
+    if (!state.running) return;
+    const nowMs = performance.now();
+    const nowSec = (nowMs - state.startTime) / 1000;
+    const remaining = Math.max(0, DURATION - nowSec);
+
+    seekbarFill.style.width = (nowSec / DURATION) * 100 + "%";
+    timerLabel.textContent = (Math.floor(remaining/60)).toString().padStart(2,'0') + ":" + (Math.floor(remaining%60)).toString().padStart(2,'0');
+
+    if(nowSec > DURATION) {
+      state.running = false;
+      ovResult.classList.remove("hidden");
+      document.getElementById("res-stats").innerHTML = `<p>PERFECT: ${state.stats.PERFECT}</p><p>MAX COMBO: ${state.maxCombo}</p>`;
+      return;
+    }
+
+    if (state.shake > 0.5) {
+      const sx = (Math.random() - 0.5) * state.shake;
+      const sy = (Math.random() - 0.5) * state.shake;
+      canvas.style.transform = `translate(${sx}px, ${sy}px)`;
+      state.shake *= 0.8;
+    } else {
+      canvas.style.transform = `translate(0,0)`;
+    }
+
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    const step = Math.floor(((nowSec % squatCycleSec) / squatCycleSec) * cycle.length);
+    let imgIdx = cycle[step];
+    if (nowMs - state.hitTime < 70) imgIdx = 0;
+    const img = images[imgIdx];
+    if (img && img.complete) {
+      const scale = Math.min(W * 0.85 / img.width, H * 0.6 / img.height);
+      ctx.drawImage(img, W/2 - (img.width*scale)/2, H/2 - (img.height*scale)/2 - 50, img.width*scale, img.height*scale);
+    }
+
+    const targetY = H * 0.82, targetX = W / 2, speed = 500;
+    ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 4;
+    ctx.arc(targetX, targetY, 40, 0, Math.PI*2); ctx.stroke();
+
+    state.notes.forEach(n => {
+      if (n.judged) return;
+      const dt = n.t - nowSec;
+      if (dt < -0.25) { n.judged = true; state.combo = 0; return; }
+      if (dt < 0) return; 
+      if (dt > 1.5) return;
+      const xOff = dt * speed;
+      ctx.fillStyle = "#2f81f7"; ctx.beginPath(); ctx.arc(targetX - xOff, targetY, 22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = "#2dd4ff"; ctx.beginPath(); ctx.arc(targetX + xOff, targetY, 22, 0, Math.PI*2); ctx.fill();
+    });
+    requestAnimationFrame(loop);
+  }
+
+  function judge() {
+    const now = (performance.now() - state.startTime) / 1000;
+    let target = state.notes.find(n => !n.judged && Math.abs(now - n.t) < 0.3);
+    if (target) {
+      const dt = Math.abs(now - target.t);
+      target.judged = true;
+      if (dt < 0.08) applyJudge("PERFECT", "var(--perfect)", 45, "PERFECT");
+      else if (dt < 0.18) applyJudge("GREAT", "var(--great)", 25, "GREAT");
+      else applyJudge("GOOD", "var(--good)", 10, "GOOD");
+    }
+  }
+
+  // キーボードイベント追加
+  window.addEventListener("keydown", (e) => {
+    if(e.code === "Space") {
+      if(state.running) {
+        e.preventDefault();
+        judge();
+      } else if (!ovStart.classList.contains("hidden")) {
+        btnStart.click(); // スペースキーでスタートも可能
+      }
+    }
+  });
+
+  btnStart.onclick = async () => {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      await DeviceMotionEvent.requestPermission();
+    }
+    ovStart.classList.add("hidden");
+    state.startTime = performance.now();
+    state.running = true;
+    buildChart();
+    loop();
+  };
+
+  let lastA = {x:0, y:0, z:0};
+  window.addEventListener("devicemotion", (e) => {
+    const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
+    const diff = Math.abs(acc.x - lastA.x) + Math.abs(acc.y - lastA.y) + Math.abs(acc.z - lastA.z);
+    lastA = {x:acc.x, y:acc.y, z:acc.z};
+    if(!state.running) {
+      const percent = Math.min(100, (diff / sensitivity) * 100);
+      sensBar.style.width = percent + "%";
+      sensBar.style.background = diff > sensitivity ? "var(--perfect)" : "var(--good)";
+    }
+    if (diff > sensitivity) judge();
+  });
+  window.addEventListener("touchstart", (e) => { if(state.running) { e.preventDefault(); judge(); } }, {passive:false});
+})();
+</script>
+</body>
+</html>
