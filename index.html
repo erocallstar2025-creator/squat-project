@@ -3,31 +3,47 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <title>Squat Rhythm — Multi-Device Edition</title>
+  <title>AQUA SQUAT - SPLASH EDITION</title>
   <style>
     :root{
-      --bg:#020406; --fg:#e7edf7; --blue:#2f81f7;
-      --perfect: #ffcf00; --great: #ff4ef0; --good: #00ffad; --miss: #ff3333;
+      --bg:#000b14; --fg:#e7edf7; --blue:#00d2ff;
+      --perfect: #00fff2; --great: #00a2ff; --good: #70ffeb; --miss: #ff3333;
     }
-    body{ margin:0; background:var(--bg); color:var(--fg); overflow:hidden; font-family:sans-serif; }
-    canvas{ width:100vw; height:100vh; display:block; transition: transform 0.03s; }
+    body{ margin:0; background:var(--bg); color:var(--fg); overflow:hidden; font-family:'Segoe UI', sans-serif; }
+    canvas{ width:100vw; height:100vh; display:block; }
     
-    .seekbar-container { position: fixed; top: 20px; left: 10%; width: 80%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; z-index: 150; border: 1px solid rgba(255,255,255,0.2); }
-    #seekbar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--blue), #00ffad); box-shadow: 0 0 15px var(--blue); }
-    .time-label { position: fixed; top: 38px; right: 10%; font-size: 18px; font-weight: bold; font-family: monospace; color: var(--blue); z-index: 150; text-shadow: 0 0 10px rgba(47,129,247,0.5); }
+    .seekbar-container { 
+      position: fixed; top: 20px; left: 10%; width: 80%; height: 10px; 
+      background: rgba(0, 210, 255, 0.1); border-radius: 20px; overflow: hidden; 
+      z-index: 150; border: 1px solid rgba(0, 210, 255, 0.3);
+    }
+    #seekbar-fill { 
+      width: 0%; height: 100%; 
+      background: linear-gradient(90deg, #00d2ff, #0055ff);
+      box-shadow: 0 0 15px var(--blue);
+    }
+    .time-label { 
+      position: fixed; top: 40px; right: 10%; font-size: 20px; font-weight: 900; 
+      font-family: monospace; color: var(--blue); z-index: 150; 
+      text-shadow: 0 0 8px var(--blue);
+    }
 
     .ui{ position:absolute; inset:0; pointer-events:none; z-index:100; display:flex; flex-direction:column; align-items:center; }
-    .score-area{ margin-top:100px; text-align:center; }
-    .combo{ font-size:24px; font-weight:bold; letter-spacing: 2px; }
-    .judge-text{ font-size:60px; font-weight:900; font-style:italic; margin-top:10px; }
+    .score-area{ margin-top:120px; text-align:center; }
+    .combo{ font-size:28px; font-weight:900; color: #fff; text-shadow: 0 0 15px var(--blue); }
+    .judge-text{ font-size:64px; font-weight:900; font-style:italic; margin-top:10px; }
     
-    .overlay{ position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,0.95); z-index:200; pointer-events:auto; }
-    .panel{ width:85%; max-width:400px; padding:30px; background:#111; border-radius:32px; text-align:center; border:1px solid #333; }
-    .btn{ padding:18px; background:var(--blue); color:#fff; border:none; border-radius:16px; font-weight:bold; width:100%; font-size:22px; cursor:pointer; margin-top: 20px;}
-    
-    .config-item { margin: 20px 0; text-align: left; }
-    .config-item label { display: block; font-size: 14px; color: #aaa; margin-bottom: 8px; }
-    input[type=range] { width: 100%; cursor: pointer; }
+    .overlay{ position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,11,20,0.9); z-index:200; }
+    .panel{ 
+      width:85%; max-width:400px; padding:30px; background:rgba(10,30,50,0.95); 
+      border-radius:30px; text-align:center; border:2px solid var(--blue); 
+      box-shadow: 0 0 40px rgba(0,210,255,0.3);
+    }
+    .btn{ 
+      padding:20px; background: linear-gradient(135deg, #00d2ff, #0055ff); 
+      color:#fff; border:none; border-radius:15px; font-weight:bold; width:100%; 
+      font-size:24px; cursor:pointer; margin-top: 25px; box-shadow: 0 5px 15px rgba(0,210,255,0.4);
+    }
     .hidden{ display:none !important; }
   </style>
 </head>
@@ -45,24 +61,24 @@
 
 <div class="overlay" id="ovStart">
   <div class="panel">
-    <h2 style="margin-bottom:10px;">IMPACT SQUAT</h2>
-    <p style="font-size:13px; color:#888;">スマホなら振って判定、PCならSpaceキーで判定！</p>
-    <div class="config-item">
-      <label>スマホ感度 (PCは無関係): <span id="sens-val" style="color:var(--blue); font-weight:bold;">20</span></label>
-      <input type="range" id="sens-slider" min="5" max="50" value="20">
-      <div id="sens-test" style="height:4px; background:#333; margin-top:10px; border-radius:2px; overflow:hidden;">
-        <div id="sens-bar" style="width:0%; height:100%; background:var(--good); transition: width 0.1s;"></div>
+    <h1 style="margin:0; color:var(--blue); text-shadow: 0 0 10px var(--blue);">AQUA SQUAT</h1>
+    <p style="font-size:13px; color:#8af;">スクワットの衝撃で水を弾けさせろ！</p>
+    <div style="text-align:left; margin:20px 0;">
+      <label style="font-size:12px;">判定感度: <span id="sens-val" style="color:var(--blue);">20</span></label>
+      <input type="range" id="sens-slider" min="5" max="50" value="20" style="width:100%;">
+      <div style="height:4px; background:#111; margin-top:10px; border-radius:2px; overflow:hidden;">
+        <div id="sens-bar" style="width:0%; height:100%; background:var(--blue);"></div>
       </div>
     </div>
-    <button class="btn" id="btnStart">START GAME</button>
+    <button class="btn" id="btnStart">START SESSION</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="ovResult">
   <div class="panel">
-    <h2>FINISH!</h2>
-    <div id="res-stats" style="font-size: 18px; margin: 20px 0;"></div>
-    <button class="btn" onclick="location.reload()">RETRY</button>
+    <h2>SESSION CLEAR</h2>
+    <div id="res-stats" style="font-size: 20px; margin: 20px 0;"></div>
+    <button class="btn" onclick="location.reload()">REPLAY</button>
   </div>
 </div>
 
@@ -91,9 +107,14 @@
   const cycle = [0, 1, 2, 3, 4, 3, 2, 1];
   
   let sensitivity = 20;
+  let lastJudgeTime = 0;
+  const particles = [];
+  const waves = [];
+
   const state = { 
     running: false, startTime: 0, notes: [], 
     combo: 0, maxCombo: 0, flash: 0, hitTime: 0, shake: 0,
+    bgFlash: 0,
     stats: { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 }
   };
 
@@ -102,18 +123,57 @@
     sensValLabel.textContent = sensitivity;
   };
 
-  function playImpactSE(type) {
+  // 水しぶきパーティクルクラス
+  class Splash {
+    constructor(x, y, color) {
+      this.x = x; this.y = y;
+      this.color = color;
+      this.radius = Math.random() * 4 + 2;
+      this.vx = (Math.random() - 0.5) * 15;
+      this.vy = -Math.random() * 20 - 5; // 上に跳ねる
+      this.gravity = 0.8;
+      this.life = 1.0;
+    }
+    update() {
+      this.vx *= 0.95;
+      this.vy += this.gravity;
+      this.x += this.vx;
+      this.y += this.vy;
+      this.life -= 0.02;
+    }
+    draw() {
+      ctx.globalAlpha = this.life;
+      ctx.fillStyle = this.color;
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // 波紋クラス
+  class Wave {
+    constructor(x, y) {
+      this.x = x; this.y = y; this.r = 0; this.life = 1.0;
+    }
+    update() { this.r += 5; this.life -= 0.02; }
+    draw() {
+      ctx.strokeStyle = `rgba(0, 210, 255, ${this.life})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(this.x, this.y, this.r, this.r*0.3, 0, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+
+  function playSound(freq, dur) {
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(type==='PERFECT'?160:100, t);
-    osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.4);
-    g.gain.setValueAtTime(0.6, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq/2, t + dur);
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(g).connect(audioCtx.destination);
-    osc.start(); osc.stop(t + 0.4);
+    osc.start(); osc.stop(t + dur);
   }
 
   const images = [];
@@ -123,21 +183,8 @@
   function buildChart() {
     let t = 3.0;
     while(t < DURATION) {
-      const isLate = t > 75;
-      const isLastSpurt = t > DURATION - 10;
-      if(isLastSpurt) {
-        [0, 0.33, 0.66].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 1.0;
-      } else {
-        const r = Math.random();
-        const complexProb = isLate ? 0.6 : 0.3;
-        if(r > complexProb) {
-          state.notes.push({ t, judged: false }); t += 1.0;
-        } else if(Math.random() > 0.5) {
-          [0, 0.25, 0.5].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 1.0;
-        } else {
-          [0, 0.25, 0.5, 0.75, 1.25].forEach(v => state.notes.push({ t: t+v, judged: false })); t += 2.0;
-        }
-      }
+      state.notes.push({ t, judged: false });
+      t += 1.0; // スクワット1回につき1ノーツ（基本）
     }
   }
 
@@ -146,11 +193,18 @@
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     state.stats[key]++;
     state.flash = 1.0; state.hitTime = performance.now(); state.shake = shake;
+    state.bgFlash = 0.2;
+    
     document.getElementById("judgeLabel").textContent = text;
     document.getElementById("judgeLabel").style.color = color;
-    document.getElementById("combo").textContent = state.combo + " COMBO";
-    playImpactSE(key);
-    if(key==='PERFECT' && navigator.vibrate) navigator.vibrate(60);
+    document.getElementById("combo").textContent = state.combo > 1 ? state.combo + " COMBO" : "";
+    
+    // 水演出
+    waves.push(new Wave(W/2, H*0.82));
+    for(let i=0; i<20; i++) particles.push(new Splash(W/2, H*0.82, color));
+    
+    playSound(key === 'PERFECT' ? 400 : 250, 0.3);
+    if(navigator.vibrate) navigator.vibrate(key === 'PERFECT' ? 60 : 30);
   }
 
   function loop() {
@@ -165,69 +219,74 @@
     if(nowSec > DURATION) {
       state.running = false;
       ovResult.classList.remove("hidden");
-      document.getElementById("res-stats").innerHTML = `<p>PERFECT: ${state.stats.PERFECT}</p><p>MAX COMBO: ${state.maxCombo}</p>`;
+      document.getElementById("res-stats").innerHTML = `PERFECT: ${state.stats.PERFECT}<br>MAX COMBO: ${state.maxCombo}`;
       return;
     }
 
-    if (state.shake > 0.5) {
-      const sx = (Math.random() - 0.5) * state.shake;
-      const sy = (Math.random() - 0.5) * state.shake;
-      canvas.style.transform = `translate(${sx}px, ${sy}px)`;
-      state.shake *= 0.8;
-    } else {
-      canvas.style.transform = `translate(0,0)`;
+    // 背景 & 水面演出
+    ctx.fillStyle = "#000b14"; ctx.fillRect(0, 0, W, H);
+    if(state.bgFlash > 0) {
+      ctx.fillStyle = `rgba(0, 210, 255, ${state.bgFlash})`;
+      ctx.fillRect(0, 0, W, H);
+      state.bgFlash *= 0.9;
     }
 
-    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    // キャラ
     const step = Math.floor(((nowSec % squatCycleSec) / squatCycleSec) * cycle.length);
-    let imgIdx = cycle[step];
-    if (nowMs - state.hitTime < 70) imgIdx = 0;
-    const img = images[imgIdx];
+    const img = images[cycle[step]];
     if (img && img.complete) {
-      const scale = Math.min(W * 0.85 / img.width, H * 0.6 / img.height);
+      const scale = Math.min(W * 0.8 / img.width, H * 0.5 / img.height);
       ctx.drawImage(img, W/2 - (img.width*scale)/2, H/2 - (img.height*scale)/2 - 50, img.width*scale, img.height*scale);
     }
 
-    const targetY = H * 0.82, targetX = W / 2, speed = 500;
-    ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 4;
-    ctx.arc(targetX, targetY, 40, 0, Math.PI*2); ctx.stroke();
+    const targetY = H * 0.82, targetX = W / 2, speed = 550;
 
+    // 波紋と水しぶきの描画
+    waves.forEach((w, i) => { w.update(); w.draw(); if(w.life <= 0) waves.splice(i, 1); });
+    particles.forEach((p, i) => { p.update(); p.draw(); if(p.life <= 0) particles.splice(i, 1); });
+
+    // 判定枠（水たまりのような光）
+    ctx.beginPath();
+    ctx.strokeStyle = state.flash > 0 ? `rgba(0, 210, 255, ${state.flash})` : "rgba(0, 210, 255, 0.2)";
+    ctx.lineWidth = 4;
+    ctx.ellipse(targetX, targetY, 60, 20, 0, 0, Math.PI*2);
+    ctx.stroke();
+    state.flash *= 0.8;
+
+    // ノーツ（泡）
     state.notes.forEach(n => {
       if (n.judged) return;
       const dt = n.t - nowSec;
-      if (dt < -0.25) { n.judged = true; state.combo = 0; return; }
-      if (dt < 0) return; 
-      if (dt > 1.5) return;
+      if (dt < -0.2) { n.judged = true; state.combo = 0; return; }
+      if (dt < 0 || dt > 1.2) return;
+      
       const xOff = dt * speed;
-      ctx.fillStyle = "#2f81f7"; ctx.beginPath(); ctx.arc(targetX - xOff, targetY, 22, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = "#2dd4ff"; ctx.beginPath(); ctx.arc(targetX + xOff, targetY, 22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = "rgba(0, 210, 255, 0.6)";
+      ctx.beginPath(); ctx.arc(targetX - xOff, targetY, 20, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(targetX + xOff, targetY, 20, 0, Math.PI*2); ctx.fill();
+      // 泡のハイライト
+      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.beginPath(); ctx.arc(targetX - xOff - 5, targetY - 5, 5, 0, Math.PI*2); ctx.fill();
     });
+
     requestAnimationFrame(loop);
   }
 
   function judge() {
-    const now = (performance.now() - state.startTime) / 1000;
-    let target = state.notes.find(n => !n.judged && Math.abs(now - n.t) < 0.3);
+    const nowMs = performance.now();
+    if(nowMs - lastJudgeTime < 250) return; // 暴発防止
+    lastJudgeTime = nowMs;
+
+    const now = (nowMs - state.startTime) / 1000;
+    let target = state.notes.find(n => !n.judged && Math.abs(now - n.t) < 0.35);
     if (target) {
       const dt = Math.abs(now - target.t);
       target.judged = true;
-      if (dt < 0.08) applyJudge("PERFECT", "var(--perfect)", 45, "PERFECT");
-      else if (dt < 0.18) applyJudge("GREAT", "var(--great)", 25, "GREAT");
-      else applyJudge("GOOD", "var(--good)", 10, "GOOD");
+      if (dt < 0.1) applyJudge("PERFECT!", "#00fff2", 40, "PERFECT");
+      else if (dt < 0.2) applyJudge("GREAT", "#00a2ff", 20, "GREAT");
+      else applyJudge("GOOD", "#70ffeb", 10, "GOOD");
     }
   }
-
-  // キーボードイベント追加
-  window.addEventListener("keydown", (e) => {
-    if(e.code === "Space") {
-      if(state.running) {
-        e.preventDefault();
-        judge();
-      } else if (!ovStart.classList.contains("hidden")) {
-        btnStart.click(); // スペースキーでスタートも可能
-      }
-    }
-  });
 
   btnStart.onclick = async () => {
     if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -240,16 +299,14 @@
     loop();
   };
 
+  window.addEventListener("keydown", (e) => { if(e.code === "Space") { e.preventDefault(); judge(); } });
+  
   let lastA = {x:0, y:0, z:0};
   window.addEventListener("devicemotion", (e) => {
     const acc = e.accelerationIncludingGravity || {x:0, y:0, z:0};
     const diff = Math.abs(acc.x - lastA.x) + Math.abs(acc.y - lastA.y) + Math.abs(acc.z - lastA.z);
     lastA = {x:acc.x, y:acc.y, z:acc.z};
-    if(!state.running) {
-      const percent = Math.min(100, (diff / sensitivity) * 100);
-      sensBar.style.width = percent + "%";
-      sensBar.style.background = diff > sensitivity ? "var(--perfect)" : "var(--good)";
-    }
+    if(!state.running) sensBar.style.width = Math.min(100, (diff/sensitivity)*100) + "%";
     if (diff > sensitivity) judge();
   });
   window.addEventListener("touchstart", (e) => { if(state.running) { e.preventDefault(); judge(); } }, {passive:false});
